@@ -6,7 +6,13 @@ import(
 	"github.com/Esseh/goauth"
 )
 
-type DropboxToken struct {
+var Config struct {
+	Redirect string
+	ClientID string
+	SecretID string
+}
+
+type Token struct {
 	AccessToken string `json:"access_token"`
 	TokenType   string `json:"token_type"`
 	UID         string `json:"uid"`
@@ -38,7 +44,7 @@ type DropboxAccountInfo struct {
 	} `json:"quota_info"`
 }
 
-func (d DropboxToken)AccountInfo(req *http.Request)(DropboxAccountInfo , error){
+func (d Token)AccountInfo(req *http.Request)(DropboxAccountInfo , error){
 	ai := DropboxAccountInfo{}
 	values := make(url.Values)
 	values.Add("access_token",d.AccessToken)
@@ -49,22 +55,22 @@ func (d DropboxToken)AccountInfo(req *http.Request)(DropboxAccountInfo , error){
 //////////////////////////////////////////////////////////////////////////////////
 // Send for Dropbox OAuth
 //////////////////////////////////////////////////////////////////////////////////
-func Send(res http.ResponseWriter, req *http.Request, redirect ,clientID string){
-	values := goauth.RequiredSend(res,req,redirect,clientID)
+func Send(res http.ResponseWriter, req *http.Request){
+	values := goauth.RequiredSend(res,req,Config.Redirect,Config.ClientID)
 	http.Redirect(res, req, "https://www.dropbox.com/1/oauth2/authorize?"+values.Encode(), http.StatusSeeOther)
 }
 
 //////////////////////////////////////////////////////////////////////////////////
 // Recieve for Dropbox OAuth
 //////////////////////////////////////////////////////////////////////////////////
-func Recieve(res http.ResponseWriter,req *http.Request, redirect ,clientID, secretID string, token *DropboxToken) error {
-	resp, err := goauth.RequiredRecieve(res,req,clientID,secretID,redirect,"https://api.dropbox.com/1/oauth2/token") 
-	if err != nil { return err }
+func Recieve(res http.ResponseWriter,req *http.Request) Token {
+	token := Token{}
+	resp, err := goauth.RequiredRecieve(res,req,Config.ClientID,Config.SecretID,Config.Redirect,"https://api.dropbox.com/1/oauth2/token") 
+	if err != nil { return Token{} }
 	
-	var data DropboxToken
-	err = goauth.ExtractValue(resp,&data)
-	if err != nil { return err }
-	*token = data
+	err = goauth.ExtractValue(resp,&token)
+	if err != nil { return Token{} }
+	
 	token.State = strings.Split(req.FormValue("state"),"](|)[")[1]
-	return nil
+	return token
 }	
